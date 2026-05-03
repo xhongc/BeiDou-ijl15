@@ -1,0 +1,28 @@
+name: build-dll
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Release Win32
+        run: msbuild ezorsia.sln /p:Configuration=Release /p:Platform=Win32
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ijl15-release
+          path: |
+            out/Release/ijl15.dll
+            ezorsia/config.ini

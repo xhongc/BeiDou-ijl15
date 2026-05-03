@@ -7,6 +7,7 @@
 #include <comutil.h>
 #include "BossHP.h"
 #include "HpMpAlert.h"
+#include "DamageMeter.h"
 
 // config.ini can use IP or hostname (ServerIP_Address=...).
 // The patch expects an IPv4 dotted string; resolve hostnames to IPv4.
@@ -64,6 +65,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 	{
 		//CreateConsole();	//console for devs, use this to log stuff if you want
 
+		bool damageMeterEnabled = true;
+		int damageMeterMaxRows = 6;
+		int damageMeterOffsetX = 0;
+		int damageMeterOffsetY = 0;
+
 		INIReader reader("config.ini");
 		if (reader.ParseError() == 0) {
 			Client::m_nGameWidth = reader.GetInteger("general", "width", 1280);
@@ -95,7 +101,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 			Client::climbSpeed = reader.GetFloat("optional", "climbSpeed", 1.0);
 			Client::talkRepeat = reader.GetBoolean("optional", "talkRepeat", false);
 			Client::talkTime = reader.GetInteger("optional", "talkTime", 2000);
+			damageMeterEnabled = reader.GetBoolean("optional", "enableDamageMeter", true);
+			damageMeterMaxRows = reader.GetInteger("optional", "damageMeterMaxRows", 6);
+			damageMeterOffsetX = reader.GetInteger("optional", "damageMeterOffsetX", 0);
+			damageMeterOffsetY = reader.GetInteger("optional", "damageMeterOffsetY", 0);
 		}
+
+		DamageMeter::Configure(damageMeterEnabled, damageMeterMaxRows, damageMeterOffsetX, damageMeterOffsetY);
 
 		Hook_CreateMutexA(true); //multiclient //ty darter, angel, and alias!
 		HookCreateWindowExA(true); //default ezorsia

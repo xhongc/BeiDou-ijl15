@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "BossHP.h"
+#include "DamageMeter.h"
 
 const DWORD dw_TSingleton_CUIMiniMap___ms_pInstance = 0x00BED788;
 const DWORD dwCField__ShowMobHpTag = 0x005336CA;
@@ -33,6 +34,7 @@ void BossHP::HookUpdate() {
 	{
 		_UserLocal__Update(pThis, edx);
 		DrawBossHpNumberIfNeed();
+		DamageMeter::UpdateOverlay();
 	};
 
 	Memory::SetHook(true, reinterpret_cast<void**>(&_UserLocal__Update), Hook);
@@ -61,6 +63,7 @@ void BossHP::HookInitField() {
 		}
 		BossHP::DisposeToolTip((int)&aBossHpUIToolTip);
 		BossHP::CreateToolTip((int)&aBossHpUIToolTip);
+		DamageMeter::OnFieldInit();
 		_Field__Init(pThis, edx);
 	};
 	Memory::SetHook(true, reinterpret_cast<void**>(&_Field__Init), Hook);
@@ -73,6 +76,7 @@ void BossHP::HookDisposeField() {
 	Field__Dispose_Type Hook = [](void* pThis, void* edx) -> void
 	{
 		DisposeBossHpNumber();
+		DamageMeter::OnFieldDispose();
 		_Field__Dispose(pThis, edx);
 	};
 	Memory::SetHook(true, reinterpret_cast<void**>(&_Field__Dispose), Hook);

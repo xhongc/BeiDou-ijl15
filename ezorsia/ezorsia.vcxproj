@@ -172,6 +172,7 @@
       <FileType>CppHeader</FileType>
     </ClInclude>
     <ClInclude Include="BossHP.h" />
+    <ClInclude Include="DamageMeter.h" />
     <ClInclude Include="HpMpAlert.h" />
     <ClInclude Include="Client.h" />
     <ClInclude Include="FixBuddy.h" />
@@ -211,6 +212,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BossHP.cpp" />
+    <ClCompile Include="DamageMeter.cpp" />
     <ClCompile Include="HpMpAlert.cpp" />
     <ClCompile Include="Client.cpp" />
     <ClCompile Include="ijl15.cpp" />
