@@ -69,6 +69,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		int damageMeterMaxRows = 6;
 		int damageMeterOffsetX = 0;
 		int damageMeterOffsetY = 0;
+		bool hpMpAlertRecvEnabled = true;
 
 		INIReader reader("config.ini");
 		if (reader.ParseError() == 0) {
@@ -105,6 +106,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 			damageMeterMaxRows = reader.GetInteger("optional", "damageMeterMaxRows", 6);
 			damageMeterOffsetX = reader.GetInteger("optional", "damageMeterOffsetX", 0);
 			damageMeterOffsetY = reader.GetInteger("optional", "damageMeterOffsetY", 0);
+			hpMpAlertRecvEnabled = reader.GetBoolean("optional", "enableHpMpAlertRecv", true);
 		}
 
 		DamageMeter::Configure(damageMeterEnabled, damageMeterMaxRows, damageMeterOffsetX, damageMeterOffsetY);
@@ -124,9 +126,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		Hook_StringPool__GetString(true); //hook stringpool modification //ty !! popcorn //ty darter
 		Hook_lpfn_NextLevel(true);
 		HookSaveGlobal(true);
-		// Disabled for now: this receive hook is the most likely source of the
-		// immediate crash during character entry / field load.
-		// HookHpMpAlertRecv(true);
+		if (hpMpAlertRecvEnabled) {
+			HookHpMpAlertRecv(true);
+		}
 		//Hook_get_unknown(true);
 		//Hook_get_resource_object(true); //helper function hooks  //ty teto for helping me get started
 		//Hook_com_ptr_t_IWzProperty__ctor(true);

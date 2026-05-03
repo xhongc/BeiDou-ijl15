@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@ constexpr DWORD kTooltipDisposeAddr = 0x008E6BA3;
 constexpr DWORD kTooltipCreateAddr = 0x008E49B5;
 constexpr DWORD kTooltipBufferSize = 1304;
 constexpr DWORD kSyncStaleMs = 3000;
+constexpr size_t kMaxPacketCopySize = 16 * 1024;
 
 struct DamageEntry {
     unsigned int characterId;
@@ -94,7 +96,27 @@ static bool ReadMapleString(const unsigned char* data, size_t size, size_t& curs
 
 static void ClearOverlay()
 {
+    if (s_toolTipCreated) {
+        s_ClearToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
+    }
     s_overlayVisible = false;
+}
+
+static bool EnsureToolTipCreated()
+{
+    if (s_toolTipCreated) {
+        return true;
+    }
+
+    __try {
+        memset(s_toolTip, 0, sizeof(s_toolTip));
+        s_CreateToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
+        s_toolTipCreated = true;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        s_toolTipCreated = false;
+        return false;
+    }
 }
 
 static void ResetState()
@@ -221,20 +243,112 @@ void DamageMeter::Configure(bool enabled, int maxRows, int offsetX, int offsetY)
 
 bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
 {
-    return false;
+    if (!s_enabled || dataPtr == nullptr || sizeValue < 6 || sizeValue > kMaxPacketCopySize) {
+        return false;
+    }
+
+    std::vector<unsigned char> buffer(static_cast<size_t>(sizeValue));
+    __try {
+        memcpy(buffer.data(), dataPtr, static_cast<size_t>(sizeValue));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+
+    const auto* data = buffer.data();
+    const size_t size = buffer.size();
+    size_t cursor = 4;
+    unsigned short opcode = 0;
+    if (!ReadU16(data, size, cursor, opcode) || opcode != kOpcodeDamageMeterSync) {
+        return false;
+    }
+
+    if (size < 13) {
+        return true;
+    }
+
+    unsigned int sessionId = 0;
+    unsigned char mode = 0;
+    unsigned char reason = 0;
+    unsigned char entryCount = 0;
+    if (!ReadU32(data, size, cursor, sessionId) ||
+        !ReadU8(data, size, cursor, mode) ||
+        !ReadU8(data, size, cursor, reason) ||
+        !ReadU8(data, size, cursor, entryCount)) {
+        return true;
+    }
+
+    if (mode == kModeHidden) {
+        ResetState();
+        return true;
+    }
+
+    std::vector<DamageEntry> parsedEntries;
+    parsedEntries.reserve(entryCount);
+    for (unsigned char i = 0; i < entryCount; ++i) {
+        DamageEntry entry{};
+        unsigned int damageLow = 0;
+        unsigned int damageHigh = 0;
+        if (!ReadU32(data, size, cursor, entry.characterId) ||
+            !ReadMapleString(data, size, cursor, entry.name) ||
+            !ReadU32(data, size, cursor, damageLow) ||
+            !ReadU32(data, size, cursor, damageHigh)) {
+            return true;
+        }
+        entry.damage = static_cast<unsigned long long>(damageLow) |
+            (static_cast<unsigned long long>(damageHigh) << 32);
+        parsedEntries.push_back(entry);
+    }
+
+    ApplySnapshot(sessionId, mode, parsedEntries);
+
+    if (reason == 1 && s_entries.empty()) {
+        ClearOverlay();
+    }
+
+    return true;
 }
 
 void DamageMeter::OnFieldInit()
 {
-    return;
+    ResetState();
 }
 
 void DamageMeter::OnFieldDispose()
 {
-    return;
+    ResetState();
 }
 
 void DamageMeter::UpdateOverlay()
 {
-    return;
+    if (!s_enabled) {
+        return;
+    }
+
+    if (s_mode != kModeParty || s_entries.empty()) {
+        if (s_overlayVisible) {
+            ClearOverlay();
+        }
+        return;
+    }
+
+    const DWORD now = GetTickCount();
+    if (s_lastSyncTick == 0 || now - s_lastSyncTick > kSyncStaleMs) {
+        ClearOverlay();
+        return;
+    }
+
+    if (!EnsureToolTipCreated()) {
+        return;
+    }
+
+    const std::string overlayText = BuildOverlayText();
+    const int x = ClampX(16 + s_offsetX);
+    const int y = ClampY(Client::m_nGameHeight - 180 + s_offsetY);
+
+    __try {
+        s_SetToolTipString(reinterpret_cast<int>(&s_toolTip), nullptr, x, y, overlayText.c_str());
+        s_overlayVisible = true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        s_overlayVisible = false;
+    }
 }

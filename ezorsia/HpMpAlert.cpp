@@ -33,20 +33,6 @@ struct CInPacket {
 };
 using SendPacket_t = void(__fastcall*)(void* pThis, void* edx, COutPacket* packet);
 static SendPacket_t g_SendPacket = reinterpret_cast<SendPacket_t>(0x0049637B);
-static bool TryReadPacketOpcode(CInPacket* packet, unsigned short& out) {
-    if (packet == nullptr || packet->Data == nullptr || packet->Size < 6) {
-        return false;
-    }
-
-    __try {
-        const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
-        out = static_cast<unsigned short>(data[4] | (data[5] << 8));
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        out = 0;
-        return false;
-    }
-}
 static bool TryReadDword(DWORD address, DWORD& out) {
     __try {
         out = *reinterpret_cast<DWORD*>(address);
@@ -102,31 +88,26 @@ static void ApplyHpMpAlertToStatusBar(unsigned char hpAlert, unsigned char mpAle
     Memory::WriteInt(statusBar + kHpAlertOffset, hpAlert);
     Memory::WriteInt(statusBar + kMpAlertOffset, mpAlert);
 }
-static bool HandleHpMpAlertPacket(CInPacket* packet) {
+static void HandleHpMpAlertPacket(CInPacket* packet) {
     if (packet == nullptr) {
-        return false;
+        return;
     }
-
-    unsigned short opcode = 0;
-    if (!TryReadPacketOpcode(packet, opcode) || opcode != kOpcodeSetHpMpAlert) {
-        return false;
-    }
-
     __try {
-        if (packet->Size < 8) {
-            return true;
+        if (packet->Data == nullptr || packet->Size < 8) {
+            return;
         }
-
         const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
+        const unsigned short opcode = *reinterpret_cast<const unsigned short*>(data + 4);
+        if (opcode != kOpcodeSetHpMpAlert) {
+            return;
+        }
         // First two bytes are HP/MP alert thresholds; append more settings after if needed.
         const unsigned char hpAlert = ClampAlert(static_cast<int>(data[6]));
         const unsigned char mpAlert = ClampAlert(static_cast<int>(data[7]));
         ApplyHpMpAlertToStatusBar(hpAlert, mpAlert);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return true;
+        return;
     }
-
-    return true;
 }
 using SaveGlobal_t = void(__fastcall*)(void* pThis, void* edx);
 static SaveGlobal_t s_SaveGlobal = reinterpret_cast<SaveGlobal_t>(kSaveGlobalAddr);
@@ -137,10 +118,10 @@ static void __fastcall SaveGlobal_Hook(void* pThis, void* edx) {
 using ProcessPacket_t = void(__fastcall*)(void* pThis, void* edx, CInPacket* packet);
 static ProcessPacket_t s_ProcessPacket = reinterpret_cast<ProcessPacket_t>(kProcessPacketAddr);
 static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* packet) {
-    if (HandleHpMpAlertPacket(packet)) {
+    HandleHpMpAlertPacket(packet);
+    if (packet != nullptr && DamageMeter::HandlePacket(packet->Data, packet->Size)) {
         return;
     }
-
     s_ProcessPacket(pThis, edx, packet);
 }
 } // namespace
