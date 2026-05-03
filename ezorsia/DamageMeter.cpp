@@ -189,7 +189,7 @@ static void ApplySnapshot(unsigned int sessionId, unsigned char mode, std::vecto
 static std::string BuildOverlayText()
 {
     std::string text("Party Damage");
-    const int rows = std::min(static_cast<int>(s_entries.size()), s_maxRows);
+    const int rows = (std::min)(static_cast<int>(s_entries.size()), s_maxRows);
     char line[256]{};
 
     for (int i = 0; i < rows; ++i) {
@@ -328,4 +328,3 @@ void DamageMeter::UpdateOverlay()
     s_SetToolTipString(reinterpret_cast<int>(&s_toolTip), nullptr, x, y, overlayText.c_str());
     s_overlayVisible = true;
 }
-
