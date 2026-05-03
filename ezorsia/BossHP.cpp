@@ -63,8 +63,8 @@ void BossHP::HookInitField() {
 		}
 		BossHP::DisposeToolTip((int)&aBossHpUIToolTip);
 		BossHP::CreateToolTip((int)&aBossHpUIToolTip);
-		DamageMeter::OnFieldInit();
 		_Field__Init(pThis, edx);
+		DamageMeter::OnFieldInit();
 	};
 	Memory::SetHook(true, reinterpret_cast<void**>(&_Field__Init), Hook);
 }

@@ -222,19 +222,22 @@ void DamageMeter::Configure(bool enabled, int maxRows, int offsetX, int offsetY)
     }
 }
 
-void DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
+bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
 {
-    if (dataPtr == nullptr || sizeValue < 13) {
-        return;
+    if (dataPtr == nullptr || sizeValue < 6) {
+        return false;
     }
 
     const auto* data = reinterpret_cast<const unsigned char*>(dataPtr);
     const size_t size = static_cast<size_t>(sizeValue);
-    size_t cursor = 4;
-
     unsigned short opcode = 0;
+    size_t cursor = 4;
     if (!ReadU16(data, size, cursor, opcode) || opcode != kOpcodeDamageMeterSync) {
-        return;
+        return false;
+    }
+
+    if (sizeValue < 13) {
+        return true;
     }
 
     unsigned int sessionId = 0;
@@ -245,12 +248,12 @@ void DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
         !ReadU8(data, size, cursor, mode) ||
         !ReadU8(data, size, cursor, reason) ||
         !ReadU8(data, size, cursor, entryCount)) {
-        return;
+        return true;
     }
 
     if (mode == kModeHidden) {
         ResetState();
-        return;
+        return true;
     }
 
     std::vector<DamageEntry> parsedEntries;
@@ -263,7 +266,7 @@ void DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
             !ReadMapleString(data, size, cursor, entry.name) ||
             !ReadU32(data, size, cursor, damageLow) ||
             !ReadU32(data, size, cursor, damageHigh)) {
-            return;
+            return true;
         }
         entry.damage = static_cast<unsigned long long>(damageLow) |
             (static_cast<unsigned long long>(damageHigh) << 32);
@@ -275,6 +278,8 @@ void DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
     if (reason == 1 && s_entries.empty()) {
         ClearOverlay();
     }
+
+    return true;
 }
 
 void DamageMeter::OnFieldInit()
