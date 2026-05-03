@@ -34,6 +34,25 @@ struct CInPacket {
 using SendPacket_t = void(__fastcall*)(void* pThis, void* edx, COutPacket* packet);
 static SendPacket_t g_SendPacket = reinterpret_cast<SendPacket_t>(0x0049637B);
 static long g_ProcessPacketLogCount = 0;
+static unsigned long GetReadablePacketSize(CInPacket* packet) {
+    if (packet == nullptr) {
+        return 0;
+    }
+
+    __try {
+        if (packet->Size >= 6 && packet->Size <= 16384) {
+            return packet->Size;
+        }
+
+        if (packet->DataLen >= 2 && packet->DataLen <= 16380) {
+            return static_cast<unsigned long>(packet->DataLen) + 4;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 0;
+    }
+
+    return 0;
+}
 static bool TryReadDword(DWORD address, DWORD& out) {
     __try {
         out = *reinterpret_cast<DWORD*>(address);
@@ -130,22 +149,29 @@ static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* pac
         if (index <= 200) {
             shouldLogPacket = true;
             unsigned short opcode = 0xFFFF;
+            unsigned short dataLen = 0;
+            unsigned int offset = 0;
             if (packet->Data != nullptr && packet->Size >= 6) {
                 __try {
                     const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
                     opcode = static_cast<unsigned short>(data[4] | (data[5] << 8));
+                    dataLen = packet->DataLen;
+                    offset = packet->Offset;
                 } __except (EXCEPTION_EXECUTE_HANDLER) {
                     opcode = 0xFFFE;
                 }
             }
-            DebugLog("ProcessPacket_Hook #%ld size=%lu data=%p opcode=0x%04X", index, packet->Size, packet->Data, opcode);
+            DebugLog("ProcessPacket_Hook #%ld size=%lu dataLen=%u offset=%u data=%p opcode=0x%04X", index, packet->Size, dataLen, offset, packet->Data, opcode);
         }
     }
 
     HandleHpMpAlertPacket(packet);
-    if (packet != nullptr && DamageMeter::HandlePacket(packet->Data, packet->Size)) {
-        DebugLog("ProcessPacket_Hook consumed by DamageMeter");
-        return;
+    if (packet != nullptr) {
+        const unsigned long readableSize = GetReadablePacketSize(packet);
+        if (readableSize != 0 && DamageMeter::HandlePacket(packet->Data, readableSize)) {
+            DebugLog("ProcessPacket_Hook consumed by DamageMeter size=%lu rawSize=%lu dataLen=%u", readableSize, packet->Size, packet->DataLen);
+            return;
+        }
     }
 
     if (packet != nullptr && shouldLogPacket) {
