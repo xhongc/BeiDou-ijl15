@@ -100,6 +100,23 @@ static void ClearOverlay()
     s_overlayVisible = false;
 }
 
+static bool EnsureToolTipCreated()
+{
+    if (s_toolTipCreated) {
+        return true;
+    }
+
+    __try {
+        memset(s_toolTip, 0, sizeof(s_toolTip));
+        s_CreateToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
+        s_toolTipCreated = true;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        s_toolTipCreated = false;
+        return false;
+    }
+}
+
 static void ResetState()
 {
     s_entries.clear();
@@ -285,31 +302,16 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
 void DamageMeter::OnFieldInit()
 {
     ResetState();
-
-    if (!s_enabled) {
-        return;
-    }
-
-    s_DisposeToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
-    s_CreateToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
-    s_toolTipCreated = true;
 }
 
 void DamageMeter::OnFieldDispose()
 {
     ResetState();
-
-    if (!s_toolTipCreated) {
-        return;
-    }
-
-    s_DisposeToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
-    s_toolTipCreated = false;
 }
 
 void DamageMeter::UpdateOverlay()
 {
-    if (!s_enabled || !s_toolTipCreated) {
+    if (!s_enabled) {
         return;
     }
 
@@ -323,6 +325,10 @@ void DamageMeter::UpdateOverlay()
     const DWORD now = GetTickCount();
     if (s_lastSyncTick == 0 || now - s_lastSyncTick > kSyncStaleMs) {
         ClearOverlay();
+        return;
+    }
+
+    if (!EnsureToolTipCreated()) {
         return;
     }
 
