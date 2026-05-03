@@ -34,6 +34,35 @@ struct CInPacket {
 using SendPacket_t = void(__fastcall*)(void* pThis, void* edx, COutPacket* packet);
 static SendPacket_t g_SendPacket = reinterpret_cast<SendPacket_t>(0x0049637B);
 static long g_ProcessPacketLogCount = 0;
+static void DumpBytes(const char* prefix, const void* ptr, size_t len) {
+    if (prefix == nullptr || ptr == nullptr || len == 0) {
+        return;
+    }
+
+    unsigned char bytes[32]{};
+    if (len > sizeof(bytes)) {
+        len = sizeof(bytes);
+    }
+
+    __try {
+        memcpy(bytes, ptr, len);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        DebugLog("%s <unreadable>", prefix);
+        return;
+    }
+
+    char hex[3 * sizeof(bytes) + 1]{};
+    size_t cursor = 0;
+    for (size_t i = 0; i < len && cursor + 4 < sizeof(hex); ++i) {
+        int written = _snprintf_s(hex + cursor, sizeof(hex) - cursor, _TRUNCATE, "%02X ", bytes[i]);
+        if (written <= 0) {
+            break;
+        }
+        cursor += static_cast<size_t>(written);
+    }
+
+    DebugLog("%s %s", prefix, hex);
+}
 static unsigned long GetReadablePacketSize(CInPacket* packet) {
     if (packet == nullptr) {
         return 0;
@@ -162,6 +191,12 @@ static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* pac
                 }
             }
             DebugLog("ProcessPacket_Hook #%ld size=%lu dataLen=%u offset=%u data=%p opcode=0x%04X", index, packet->Size, dataLen, offset, packet->Data, opcode);
+            if (index <= 20) {
+                DumpBytes("packet-bytes", packet, 32);
+                if (packet->Data != nullptr) {
+                    DumpBytes("data-bytes", packet->Data, 32);
+                }
+            }
         }
     }
 
