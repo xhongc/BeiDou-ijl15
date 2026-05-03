@@ -259,6 +259,8 @@ void DamageMeter::Configure(bool enabled, int maxRows, int offsetX, int offsetY)
     if (!s_enabled) {
         ClearOverlay();
     }
+
+    DebugLog("DamageMeter::Configure enabled=%d rows=%d offset=(%d,%d)", enabled ? 1 : 0, s_maxRows, s_offsetX, s_offsetY);
 }
 
 bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
@@ -280,7 +282,10 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
         return false;
     }
 
+    DebugLog("DamageMeter::HandlePacket opcode=0x%04X size=%lu", opcode, sizeValue);
+
     if (size < 13) {
+        DebugLog("DamageMeter::HandlePacket too short for payload");
         return true;
     }
 
@@ -292,11 +297,15 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
         !ReadU8(data, size, cursor, mode) ||
         !ReadU8(data, size, cursor, reason) ||
         !ReadU8(data, size, cursor, entryCount)) {
+        DebugLog("DamageMeter::HandlePacket header parse failed");
         return true;
     }
 
+    DebugLog("DamageMeter::HandlePacket session=%u mode=%u reason=%u entryCount=%u", sessionId, mode, reason, entryCount);
+
     if (mode == kModeHidden) {
         ResetState();
+        DebugLog("DamageMeter::HandlePacket reset hidden");
         return true;
     }
 
@@ -310,6 +319,7 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
             !ReadMapleString(data, size, cursor, entry.name) ||
             !ReadU32(data, size, cursor, damageLow) ||
             !ReadU32(data, size, cursor, damageHigh)) {
+            DebugLog("DamageMeter::HandlePacket entry parse failed index=%u", static_cast<unsigned int>(i));
             return true;
         }
         entry.damage = static_cast<unsigned long long>(damageLow) |
@@ -323,17 +333,21 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
         ClearOverlay();
     }
 
+    DebugLog("DamageMeter::HandlePacket applied entries=%u", static_cast<unsigned int>(s_entries.size()));
+
     return true;
 }
 
 void DamageMeter::OnFieldInit()
 {
     ResetState();
+    DebugLog("DamageMeter::OnFieldInit");
 }
 
 void DamageMeter::OnFieldDispose()
 {
     ResetState();
+    DebugLog("DamageMeter::OnFieldDispose");
 }
 
 void DamageMeter::UpdateOverlay()

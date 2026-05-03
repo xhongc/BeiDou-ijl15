@@ -16,7 +16,11 @@
 
 // reference additional headers your program requires here
 
+#include <cstdarg>
 #include <iostream>
 #include "Client.h"
 #include "Memory.h"
+
+void SetEzorsiaDebugLogEnabled(bool enabled);
+void DebugLog(const char* format, ...);
 

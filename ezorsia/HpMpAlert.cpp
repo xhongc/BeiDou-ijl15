@@ -33,6 +33,7 @@ struct CInPacket {
 };
 using SendPacket_t = void(__fastcall*)(void* pThis, void* edx, COutPacket* packet);
 static SendPacket_t g_SendPacket = reinterpret_cast<SendPacket_t>(0x0049637B);
+static long g_ProcessPacketLogCount = 0;
 static bool TryReadDword(DWORD address, DWORD& out) {
     __try {
         out = *reinterpret_cast<DWORD*>(address);
@@ -78,6 +79,7 @@ static void SendHpMpAlertFromStatusBar() {
     packet.Size = sizeof(payload);
     packet.Offset = 0;
     packet.EncryptedByShanda = 0;
+    DebugLog("SendHpMpAlertFromStatusBar hp=%u mp=%u socket=0x%08X", hpAlert, mpAlert, socketPtr);
     g_SendPacket(reinterpret_cast<void*>(socketPtr), nullptr, &packet);
 }
 static void ApplyHpMpAlertToStatusBar(unsigned char hpAlert, unsigned char mpAlert) {
@@ -104,8 +106,10 @@ static void HandleHpMpAlertPacket(CInPacket* packet) {
         // First two bytes are HP/MP alert thresholds; append more settings after if needed.
         const unsigned char hpAlert = ClampAlert(static_cast<int>(data[6]));
         const unsigned char mpAlert = ClampAlert(static_cast<int>(data[7]));
+        DebugLog("Recv HpMpAlert opcode=0x%04X size=%lu hp=%u mp=%u", opcode, packet->Size, hpAlert, mpAlert);
         ApplyHpMpAlertToStatusBar(hpAlert, mpAlert);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
+        DebugLog("HandleHpMpAlertPacket exception");
         return;
     }
 }
@@ -118,9 +122,34 @@ static void __fastcall SaveGlobal_Hook(void* pThis, void* edx) {
 using ProcessPacket_t = void(__fastcall*)(void* pThis, void* edx, CInPacket* packet);
 static ProcessPacket_t s_ProcessPacket = reinterpret_cast<ProcessPacket_t>(kProcessPacketAddr);
 static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* packet) {
+    bool shouldLogPacket = false;
+    if (packet == nullptr) {
+        DebugLog("ProcessPacket_Hook packet=null");
+    } else {
+        const long index = InterlockedIncrement(&g_ProcessPacketLogCount);
+        if (index <= 200) {
+            shouldLogPacket = true;
+            unsigned short opcode = 0xFFFF;
+            if (packet->Data != nullptr && packet->Size >= 6) {
+                __try {
+                    const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
+                    opcode = static_cast<unsigned short>(data[4] | (data[5] << 8));
+                } __except (EXCEPTION_EXECUTE_HANDLER) {
+                    opcode = 0xFFFE;
+                }
+            }
+            DebugLog("ProcessPacket_Hook #%ld size=%lu data=%p opcode=0x%04X", index, packet->Size, packet->Data, opcode);
+        }
+    }
+
     HandleHpMpAlertPacket(packet);
     if (packet != nullptr && DamageMeter::HandlePacket(packet->Data, packet->Size)) {
+        DebugLog("ProcessPacket_Hook consumed by DamageMeter");
         return;
+    }
+
+    if (packet != nullptr && shouldLogPacket) {
+        DebugLog("ProcessPacket_Hook pass-through size=%lu", packet->Size);
     }
     s_ProcessPacket(pThis, edx, packet);
 }

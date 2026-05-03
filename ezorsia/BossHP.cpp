@@ -58,6 +58,7 @@ void BossHP::HookInitField() {
 
 	Field__Init_Type Hook = [](void* pThis, void* edx) -> void
 	{
+		DebugLog("BossHP::FieldInit begin this=%p", pThis);
 		if (dBossHpPercentage > 0) {
 			BossHP::DisposeBossHpNumber();
 		}
@@ -65,6 +66,7 @@ void BossHP::HookInitField() {
 		BossHP::CreateToolTip((int)&aBossHpUIToolTip);
 		_Field__Init(pThis, edx);
 		DamageMeter::OnFieldInit();
+		DebugLog("BossHP::FieldInit end this=%p", pThis);
 	};
 	Memory::SetHook(true, reinterpret_cast<void**>(&_Field__Init), Hook);
 }
@@ -75,9 +77,11 @@ void BossHP::HookDisposeField() {
 
 	Field__Dispose_Type Hook = [](void* pThis, void* edx) -> void
 	{
+		DebugLog("BossHP::FieldDispose begin this=%p", pThis);
 		DisposeBossHpNumber();
 		DamageMeter::OnFieldDispose();
 		_Field__Dispose(pThis, edx);
+		DebugLog("BossHP::FieldDispose end this=%p", pThis);
 	};
 	Memory::SetHook(true, reinterpret_cast<void**>(&_Field__Dispose), Hook);
 }

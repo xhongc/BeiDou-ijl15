@@ -70,6 +70,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		int damageMeterOffsetX = 0;
 		int damageMeterOffsetY = 0;
 		bool hpMpAlertRecvEnabled = true;
+		bool debugLogEnabled = true;
+
+		DebugLog("DllMain attach begin");
 
 		INIReader reader("config.ini");
 		if (reader.ParseError() == 0) {
@@ -92,6 +95,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 			Client::jumpCap = reader.GetInteger("optional", "jumpCap", 123);
 			Client::debug = reader.GetBoolean("debug", "debug", false);
 			Client::noPassword = reader.GetBoolean("debug", "noPassword", false);
+			debugLogEnabled = reader.GetBoolean("debug", "debugLog", true);
 			Client::imeType = reader.GetInteger("general", "imeType", 1);
 			ownLoginFrame = reader.GetBoolean("optional", "ownLoginFrame", false);
 			ownCashShopFrame = reader.GetBoolean("optional", "ownCashShopFrame", false);
@@ -109,7 +113,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 			hpMpAlertRecvEnabled = reader.GetBoolean("optional", "enableHpMpAlertRecv", true);
 		}
 
+		SetEzorsiaDebugLogEnabled(debugLogEnabled);
+		DebugLog("Config loaded width=%d height=%d damageMeter=%d hpMpRecv=%d", Client::m_nGameWidth, Client::m_nGameHeight, damageMeterEnabled ? 1 : 0, hpMpAlertRecvEnabled ? 1 : 0);
+
 		DamageMeter::Configure(damageMeterEnabled, damageMeterMaxRows, damageMeterOffsetX, damageMeterOffsetY);
+		DebugLog("DamageMeter configured rows=%d offset=(%d,%d)", damageMeterMaxRows, damageMeterOffsetX, damageMeterOffsetY);
 
 		Hook_CreateMutexA(true); //multiclient //ty darter, angel, and alias!
 		HookCreateWindowExA(true); //default ezorsia
@@ -128,6 +136,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		HookSaveGlobal(true);
 		if (hpMpAlertRecvEnabled) {
 			HookHpMpAlertRecv(true);
+			DebugLog("HookHpMpAlertRecv enabled");
+		} else {
+			DebugLog("HookHpMpAlertRecv disabled");
 		}
 		//Hook_get_unknown(true);
 		//Hook_get_resource_object(true); //helper function hooks  //ty teto for helping me get started
@@ -152,6 +163,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 		std::cout << "GetModuleFileName hook created" << std::endl;
 		ijl15::CreateHook(); //NMCO::CreateHook();
 		std::cout << "NMCO hook initialized" << std::endl;
+		DebugLog("DllMain attach finished");
 		break;
 	}
 	default: break;
