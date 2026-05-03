@@ -94,27 +94,7 @@ static bool ReadMapleString(const unsigned char* data, size_t size, size_t& curs
 
 static void ClearOverlay()
 {
-    if (s_toolTipCreated) {
-        s_ClearToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
-    }
     s_overlayVisible = false;
-}
-
-static bool EnsureToolTipCreated()
-{
-    if (s_toolTipCreated) {
-        return true;
-    }
-
-    __try {
-        memset(s_toolTip, 0, sizeof(s_toolTip));
-        s_CreateToolTip(reinterpret_cast<int>(&s_toolTip), nullptr);
-        s_toolTipCreated = true;
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        s_toolTipCreated = false;
-        return false;
-    }
 }
 
 static void ResetState()
@@ -302,40 +282,16 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
 void DamageMeter::OnFieldInit()
 {
     ResetState();
+    s_toolTipCreated = false;
 }
 
 void DamageMeter::OnFieldDispose()
 {
     ResetState();
+    s_toolTipCreated = false;
 }
 
 void DamageMeter::UpdateOverlay()
 {
-    if (!s_enabled) {
-        return;
-    }
-
-    if (s_mode != kModeParty || s_entries.empty()) {
-        if (s_overlayVisible) {
-            ClearOverlay();
-        }
-        return;
-    }
-
-    const DWORD now = GetTickCount();
-    if (s_lastSyncTick == 0 || now - s_lastSyncTick > kSyncStaleMs) {
-        ClearOverlay();
-        return;
-    }
-
-    if (!EnsureToolTipCreated()) {
-        return;
-    }
-
-    const std::string overlayText = BuildOverlayText();
-    const int x = ClampX(16 + s_offsetX);
-    const int y = ClampY(Client::m_nGameHeight - 180 + s_offsetY);
-
-    s_SetToolTipString(reinterpret_cast<int>(&s_toolTip), nullptr, x, y, overlayText.c_str());
-    s_overlayVisible = true;
+    return;
 }
