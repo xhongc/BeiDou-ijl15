@@ -34,6 +34,21 @@ struct CInPacket {
 using SendPacket_t = void(__fastcall*)(void* pThis, void* edx, COutPacket* packet);
 static SendPacket_t g_SendPacket = reinterpret_cast<SendPacket_t>(0x0049637B);
 static long g_ProcessPacketLogCount = 0;
+static bool ReadPacketU16(CInPacket* packet, size_t offset, unsigned short& out) {
+    if (packet == nullptr) {
+        return false;
+    }
+
+    __try {
+        const unsigned char* base = reinterpret_cast<const unsigned char*>(packet);
+        out = static_cast<unsigned short>(base[offset] | (base[offset + 1] << 8));
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        out = 0;
+        return false;
+    }
+}
+
 static void DumpBytes(const char* prefix, const void* ptr, size_t len) {
     if (prefix == nullptr || ptr == nullptr || len == 0) {
         return;
@@ -68,16 +83,14 @@ static unsigned long GetReadablePacketSize(CInPacket* packet) {
         return 0;
     }
 
-    __try {
-        if (packet->Size >= 6 && packet->Size <= 16384) {
-            return packet->Size;
-        }
+    unsigned short totalSize = 0;
+    unsigned short payloadSize = 0;
+    if (ReadPacketU16(packet, 12, totalSize) && totalSize >= 6 && totalSize <= 16384) {
+        return static_cast<unsigned long>(totalSize);
+    }
 
-        if (packet->DataLen >= 2 && packet->DataLen <= 16380) {
-            return static_cast<unsigned long>(packet->DataLen) + 4;
-        }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return 0;
+    if (ReadPacketU16(packet, 16, payloadSize) && payloadSize >= 2 && payloadSize <= 16380) {
+        return static_cast<unsigned long>(payloadSize) + 4;
     }
 
     return 0;
@@ -143,7 +156,8 @@ static void HandleHpMpAlertPacket(CInPacket* packet) {
         return;
     }
     __try {
-        if (packet->Data == nullptr || packet->Size < 8) {
+        const unsigned long readableSize = GetReadablePacketSize(packet);
+        if (packet->Data == nullptr || readableSize < 8) {
             return;
         }
         const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
@@ -154,7 +168,7 @@ static void HandleHpMpAlertPacket(CInPacket* packet) {
         // First two bytes are HP/MP alert thresholds; append more settings after if needed.
         const unsigned char hpAlert = ClampAlert(static_cast<int>(data[6]));
         const unsigned char mpAlert = ClampAlert(static_cast<int>(data[7]));
-        DebugLog("Recv HpMpAlert opcode=0x%04X size=%lu hp=%u mp=%u", opcode, packet->Size, hpAlert, mpAlert);
+        DebugLog("Recv HpMpAlert opcode=0x%04X size=%lu hp=%u mp=%u", opcode, readableSize, hpAlert, mpAlert);
         ApplyHpMpAlertToStatusBar(hpAlert, mpAlert);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         DebugLog("HandleHpMpAlertPacket exception");
@@ -178,19 +192,22 @@ static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* pac
         if (index <= 200) {
             shouldLogPacket = true;
             unsigned short opcode = 0xFFFF;
-            unsigned short dataLen = 0;
+            unsigned short packetSize16 = 0;
+            unsigned short payloadSize16 = 0;
             unsigned int offset = 0;
-            if (packet->Data != nullptr && packet->Size >= 6) {
+            const unsigned long readableSize = GetReadablePacketSize(packet);
+            if (packet->Data != nullptr && readableSize >= 6) {
                 __try {
                     const unsigned char* data = reinterpret_cast<const unsigned char*>(packet->Data);
                     opcode = static_cast<unsigned short>(data[4] | (data[5] << 8));
-                    dataLen = packet->DataLen;
+                    ReadPacketU16(packet, 12, packetSize16);
+                    ReadPacketU16(packet, 16, payloadSize16);
                     offset = packet->Offset;
                 } __except (EXCEPTION_EXECUTE_HANDLER) {
                     opcode = 0xFFFE;
                 }
             }
-            DebugLog("ProcessPacket_Hook #%ld size=%lu dataLen=%u offset=%u data=%p opcode=0x%04X", index, packet->Size, dataLen, offset, packet->Data, opcode);
+            DebugLog("ProcessPacket_Hook #%ld rawSize=%lu size16=%u payload16=%u offset=%u data=%p opcode=0x%04X", index, packet->Size, packetSize16, payloadSize16, offset, packet->Data, opcode);
             if (index <= 20) {
                 DumpBytes("packet-bytes", packet, 32);
                 if (packet->Data != nullptr) {
@@ -204,7 +221,11 @@ static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* pac
     if (packet != nullptr) {
         const unsigned long readableSize = GetReadablePacketSize(packet);
         if (readableSize != 0 && DamageMeter::HandlePacket(packet->Data, readableSize)) {
-            DebugLog("ProcessPacket_Hook consumed by DamageMeter size=%lu rawSize=%lu dataLen=%u", readableSize, packet->Size, packet->DataLen);
+            unsigned short packetSize16 = 0;
+            unsigned short payloadSize16 = 0;
+            ReadPacketU16(packet, 12, packetSize16);
+            ReadPacketU16(packet, 16, payloadSize16);
+            DebugLog("ProcessPacket_Hook consumed by DamageMeter size=%lu rawSize=%lu size16=%u payload16=%u", readableSize, packet->Size, packetSize16, payloadSize16);
             return;
         }
     }
