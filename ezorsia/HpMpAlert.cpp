@@ -141,10 +141,6 @@ static void __fastcall ProcessPacket_Hook(void* pThis, void* edx, CInPacket* pac
         return;
     }
 
-    if (packet != nullptr && DamageMeter::HandlePacket(packet->Data, packet->Size)) {
-        return;
-    }
-
     s_ProcessPacket(pThis, edx, packet);
 }
 } // namespace

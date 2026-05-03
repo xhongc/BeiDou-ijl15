@@ -221,74 +221,17 @@ void DamageMeter::Configure(bool enabled, int maxRows, int offsetX, int offsetY)
 
 bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
 {
-    if (dataPtr == nullptr || sizeValue < 6) {
-        return false;
-    }
-
-    const auto* data = reinterpret_cast<const unsigned char*>(dataPtr);
-    const size_t size = static_cast<size_t>(sizeValue);
-    unsigned short opcode = 0;
-    size_t cursor = 4;
-    if (!ReadU16(data, size, cursor, opcode) || opcode != kOpcodeDamageMeterSync) {
-        return false;
-    }
-
-    if (sizeValue < 13) {
-        return true;
-    }
-
-    unsigned int sessionId = 0;
-    unsigned char mode = 0;
-    unsigned char reason = 0;
-    unsigned char entryCount = 0;
-    if (!ReadU32(data, size, cursor, sessionId) ||
-        !ReadU8(data, size, cursor, mode) ||
-        !ReadU8(data, size, cursor, reason) ||
-        !ReadU8(data, size, cursor, entryCount)) {
-        return true;
-    }
-
-    if (mode == kModeHidden) {
-        ResetState();
-        return true;
-    }
-
-    std::vector<DamageEntry> parsedEntries;
-    parsedEntries.reserve(entryCount);
-    for (unsigned char i = 0; i < entryCount; ++i) {
-        DamageEntry entry{};
-        unsigned int damageLow = 0;
-        unsigned int damageHigh = 0;
-        if (!ReadU32(data, size, cursor, entry.characterId) ||
-            !ReadMapleString(data, size, cursor, entry.name) ||
-            !ReadU32(data, size, cursor, damageLow) ||
-            !ReadU32(data, size, cursor, damageHigh)) {
-            return true;
-        }
-        entry.damage = static_cast<unsigned long long>(damageLow) |
-            (static_cast<unsigned long long>(damageHigh) << 32);
-        parsedEntries.push_back(entry);
-    }
-
-    ApplySnapshot(sessionId, mode, parsedEntries);
-
-    if (reason == 1 && s_entries.empty()) {
-        ClearOverlay();
-    }
-
-    return true;
+    return false;
 }
 
 void DamageMeter::OnFieldInit()
 {
-    ResetState();
-    s_toolTipCreated = false;
+    return;
 }
 
 void DamageMeter::OnFieldDispose()
 {
-    ResetState();
-    s_toolTipCreated = false;
+    return;
 }
 
 void DamageMeter::UpdateOverlay()
