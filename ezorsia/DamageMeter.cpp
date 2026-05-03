@@ -119,6 +119,26 @@ static bool EnsureToolTipCreated()
     }
 }
 
+static bool TryCopyPacketData(const void* dataPtr, size_t size, unsigned char* outBuffer)
+{
+    __try {
+        memcpy(outBuffer, dataPtr, size);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+static bool TrySetOverlayText(int x, int y, const char* text)
+{
+    __try {
+        s_SetToolTipString(reinterpret_cast<int>(&s_toolTip), nullptr, x, y, text);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 static void ResetState()
 {
     s_entries.clear();
@@ -248,9 +268,7 @@ bool DamageMeter::HandlePacket(const void* dataPtr, unsigned long sizeValue)
     }
 
     std::vector<unsigned char> buffer(static_cast<size_t>(sizeValue));
-    __try {
-        memcpy(buffer.data(), dataPtr, static_cast<size_t>(sizeValue));
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    if (!TryCopyPacketData(dataPtr, static_cast<size_t>(sizeValue), buffer.data())) {
         return false;
     }
 
@@ -345,10 +363,9 @@ void DamageMeter::UpdateOverlay()
     const int x = ClampX(16 + s_offsetX);
     const int y = ClampY(Client::m_nGameHeight - 180 + s_offsetY);
 
-    __try {
-        s_SetToolTipString(reinterpret_cast<int>(&s_toolTip), nullptr, x, y, overlayText.c_str());
+    if (TrySetOverlayText(x, y, overlayText.c_str())) {
         s_overlayVisible = true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } else {
         s_overlayVisible = false;
     }
 }
